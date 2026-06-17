@@ -1,0 +1,38 @@
+# Temporal Straightening — straighten JEPA latent trajectories with a curvature regularizer so gradient-based latent planning becomes stable and high-success
+
+**Authors:** Ying Wang, Oumayma Bounou, Gaoyue Zhou, Randall Balestriero, Tim G. J. Rudner, Yann LeCun, Mengye Ren (NYU / Brown / U. Toronto) **Venue/Year:** ICML 2026 (PMLR 306); submitted to arXiv 2026/03/12 (v2 2026/06/11) **arXiv:** 2603.12231 **Repo:** https://agenticlearning.ai/temporal-straightening/
+
+## TL;DR
+Pretrained visual encoders (frozen DINOv2) produce highly *curved* latent trajectories, which makes the latent-planning objective ill-conditioned and Euclidean latent distance a poor proxy for the true (geodesic) distance-to-goal. Inspired by the perceptual-straightening hypothesis from human vision, the authors add a simple **curvature regularizer** (1 − cosine similarity between consecutive latent velocity vectors) to JEPA world-model training, jointly learning the encoder (projector or ResNet) and predictor. Straightening improves the planning Hessian's conditioning and lifts gradient-based planning success rates by **20–60% open-loop** and **20–30% MPC** across 2D goal-reaching tasks.
+
+## Problem & motivation
+Latent world models plan by optimizing an action sequence to minimize a goal cost between the predicted terminal latent and the goal latent. That objective is highly non-convex, so the field leans on expensive sampling planners (CEM, MPPI) instead of cheap gradient descent. General-purpose pretrained encoders (DINOv2) give strong semantic features but are not tailored to dynamics: they keep planning-irrelevant low-level detail, and their **Euclidean distance misrepresents geodesic distance** when trajectories are curved. A good planning representation should be (i) sufficient to predict dynamics without task-irrelevant info, and (ii) regularized so embedding distances reflect geodesic distance and gradient optimization is reliable. The **perceptual-straightening hypothesis** (Hénaff et al. 2019) — biological vision turns curved natural-video trajectories into straighter internal ones — motivates importing explicit straightening into world-model representation learning. The JEPA prediction loss already induces *implicit* straightening; the explicit regularizer strengthens and stabilizes it.
+
+## Method
+**World model.** Sensory encoder `z_t = E^s_ϕ(o_t)`, action encoder `E^a_ψ`, predictor `f_θ` (ViT with a temporal causal attention mask, frame-level autoregressive) predicting `ẑ_t` from K past latents+actions (K=3 history frames). Proprioception encoder `E^p_ξ` concatenated when available (PushT).
+
+**Curvature regularizer.** For three consecutive latents define velocities `v_t = z_{t+1} − z_t`, `v_{t+1} = z_{t+2} − z_{t+1}`; cosine `C = (v_t·v_{t+1})/(||v_t|| ||v_{t+1}||)` (Eq. 4); straightening loss `L_curv = 1 − C` (Eq. 6).
+
+**Objective.** `L_pred = ||ẑ_{t+1} − sg(z_{t+1})||²` (Eq. 5, **stop-gradient** target, SimSiam-style — *not* EMA); total `L_total = L_pred + λ·L_curv` (Eq. 7). Anti-collapse via stop-grad (no negatives, no extra hyperparameters); the curvature term is orthogonal and combinable with VICReg/contrastive. Key design: prediction loss on spatial features, **curvature loss on aggregated features** (learnable MLP aggregation head, output dim 128) so spatial tokens aren't over-straightened (this `agg` variant wins the ablation, λ=0.1).
+
+**Planning.** Goal-reaching by gradient descent through the differentiable learned dynamics: minimize terminal `L(a) = ||z_K − z_g||²` (Adam, lr 0.1, 100 steps, zero-init actions, horizon 25). Open-loop executes all actions; closed-loop MPC replans and executes the first frameskip-5 chunk.
+
+**Theory (linear dynamics `z_{t+1}=Az_t+Ba_t`).** An ε-straight transition has `||A−I||₂ ≤ ε`. Thm 4.4: planning Hessian's effective condition number equals that of the controllability Gramian, with `κ_eff(H) ≤ κ(B)²·((1+ε)/(1−ε))^{2(K−1)}` and `≤ κ(B)²e^{6εK}` for ε≤½ — smaller curvature → better conditioning → faster, more reliable GD. Prop. C.9 ties mean cosine similarity to ε as a practical proxy.
+
+## Key results
+Benchmarks: **Wall** (two-room nav), **PointMaze-UMaze**, **PointMaze-Medium** (D4RL), **PushT**; baseline **DINO-WM** (frozen DINOv2). Frameskip 5, 50 test samples, mean over 3 data seeds. Quoting Table 1 (GD planner, open-loop / MPC %):
+- **DINOv2(patch)+proj, 14×14×8:** without L_curv → UMaze 44.00/81.33, Wall 80.00/90.67; **with L_curv** → UMaze **94.00/100.00**, Wall **90.67/100.00**, Medium **82.67/98.67**, PushT **77.33/85.33**.
+- **ResNet from scratch, 14×14×8:** without → Wall 1.33/6.67 (extreme curvature → near-collapse), UMaze 14.67/66.00; **with** → Wall **84.67/100.00**, UMaze **64.67/98.67**, Medium **80.67/99.33**.
+- **Global (1×384) ResNet, Wall:** open-loop 4.67 → **84.00**; MPC 10.00 → **100.00**.
+
+Explicit straightening gives **>10%** boost in open-loop and MPC for almost all setups; reaches **100% MPC on Wall and UMaze**. Ablations: straightening helps both GD *and* CEM (CEM higher but ~10× slower; straightening shrinks the GD–CEM gap); spatial structure matters more than channel count (sweet spot dv∈{8,32}; dv=128 hurts); **smoothness and temporal-contrastive regularizers give no improvement** on PushT — straightening clearly wins; the `agg`-head cosine variant is best. Teleported-PointMaze (App. F) shows straightening captures *dynamics* (plans through a teleport) not appearance. Latent Euclidean distance heatmaps align with A-star geodesic distances.
+
+## Relevance to the EB-JEPA hackathon
+**Track/modality: world-model / video latent planning (2D goal-reaching, RGB observations + actions).** This is a direct descendant of `dino-wm` (the baseline it extends) and squarely in the EB-JEPA video-world-model / planning track. Map to the eb_jepa recipe: it is a JEPA world model (encoder + action-conditioned predictor + stop-grad MSE prediction loss) with **one added regularizer term** `λ·(1 − cos(v_t, v_{t+1}))` on aggregated latents. In EB-JEPA energy terms, this is an extra *geometric* energy on the latent trajectory (low energy = locally straight), orthogonal to the variance/covariance/SIGReg anti-collapse terms already in the stack — a near drop-in addition to any action-conditioned video-JEPA (e.g. `ac_video_jepa`) that wants better gradient-based planning. The key recipe lessons for the hackathon: (i) train the encoder/projector rather than freezing it, with a small encoder lr (1e-5; 1e-6 without straightening); (ii) apply prediction loss on spatial tokens but curvature loss on an aggregated 128-d head; (iii) straightening makes cheap gradient-descent planning competitive with expensive CEM/MPPI sampling.
+
+## Caveats & open threads
+- Conditioning theory is derived for **linear** dynamics (`||A−I||≤ε`); the cosine proxy bounds (A−I) only along *visited* directions (Remark C.10 — spectral control needs a coverage assumption). Empirically the nonlinear-predictor landscape does become closer to convex (Fig. 4).
+- All benchmarks are **2D / low-dimensional goal-reaching** (Wall, PointMaze, PushT); no high-DoF manipulation or real robots. Generalization to richer dynamics is untested.
+- ResNet-from-scratch without straightening can degrade severely (Wall 1.33% open-loop), requiring lr tuning; straightening is what rescues it.
+- Anti-collapse relies on plain stop-gradient; EMA is deliberately not used. Combining the curvature term with VICReg/contrastive anti-collapse is noted as possible but not the headline configuration.
+- The VAE-style decoder is for interpretability only (latents detached); it is not part of the world model or planner.
