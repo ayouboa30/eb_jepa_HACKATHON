@@ -22,6 +22,7 @@ data:
   aug_chan_drop_p: 0.2
   aug_time_mask_frac: 0.2
 model:
+  architecture: video_jepa
   in_channels: 19
   out_dim: 256          # latent dim D (encoder output)
   base_filters: 64
