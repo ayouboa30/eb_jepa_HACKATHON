@@ -1,8 +1,0 @@
-# LTSF dataset defaults (ETT long-term forecasting).
-csv: /lustre/work/pdl17890/udl806719/datasets/LTSF/ETT-small/ETTh1.csv
-name: ETTh1              # ETTh1 | ETTh2 (hourly) | ETTm1 | ETTm2 (15-min)
-in_channels: 7          # HUFL HULL MUFL MULL LUFL LULL OT
-seq_len: 336            # input window length L
-pred_len: 96            # forecast horizon H (probe sweeps {96,192,336,720})
-batch_size: 64
-num_workers: 8

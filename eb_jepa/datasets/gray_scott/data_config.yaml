@@ -1,9 +1,0 @@
-# Gray-Scott dataset defaults (The Well reaction-diffusion, 2D physical video).
-data_root: /lustre/work/pdl17890/udl806719/datasets/the_well/gray_scott_reaction_diffusion
-channels: 2              # two chemical fields A, B (z-scored per channel)
-img_size: 128            # 128 x 128 grid
-n_frames: 16             # frames per clip
-time_stride: 4           # Gray-Scott evolves slowly -> space frames out
-epoch_size: 8000         # random clips drawn per epoch
-batch_size: 8
-num_workers: 8
