@@ -188,26 +188,43 @@ Nous avons testé l'utilité pratique du VAE en tant qu'outil d'augmentation de 
 
 ## 5. Benchmark de Transfert OOD avec Décideur Non-Linéaire (MLP)
 
-Suite à votre intuition, nous avons relancé le benchmark en remplaçant la régression logistique finale par un **Décideur MLP** (3 couches cachées de 128 neurones, BatchNorm, ReLU, et Dropout de 0.1). L'objectif était de voir si un modèle en aval plus expressif pouvait mieux exploiter l'augmentation de données du VAE Spectral.
+Nous avons comparé deux types de représentations pré-entraînées sur le signal EEG : la baseline **VICReg** (invariance par paires) et **Video-JEPA** (prédiction temporelle du bloc suivant). Pour l'évaluation finale en aval, nous utilisons un **Décideur MLP** (3 couches cachées de 128 neurones, BatchNorm, ReLU, et Dropout de 0.1).
 
-### Nouveaux Résultats
+---
 
-Les résultats détaillés sont dans [jepa_ood_benchmark.csv](file:///C:/Users/ayoub/Documents/GitHub/eb_jepa_HACKATHON/results/jepa_ood_benchmark.csv).
+### 5.1 Représentations VICReg (Invariance par Paires)
 
-| Fraction (Train) | Fenêtres vues | JEPA (Baseline MLP) | JEPA + VAE Spectral (Augmentation MLP) |
-| :--- | :--- | :--- | :--- |
-| **1.0%** | 24 | Acc: 65.58% (Rec: 66.62%) | Acc: 63.04% (Rec: 63.78%) |
-| **5.0%** | 143 | Acc: 64.86% (Rec: 64.56%) | Acc: **68.48%** (Rec: 68.33%) |
-| **25.0%** | 690 | Acc: 68.84% (Rec: 68.60%) | Acc: **73.55%** (Rec: 73.32%) |
-| **100.0%** | 2717 | Acc: 71.01% (Rec: 71.11%) | Acc: **74.64%** (Rec: 74.13%) |
+L'encodeur 1D CNN est entraîné à minimiser la distance entre deux vues bruitées d'une même fenêtre temporelle.
 
-### Analyse : Une Percée Significative !
+| Fraction (Train) | Fenêtres vues | VICReg (Baseline MLP) | VICReg + VAE Spectral (Augmentation MLP) | Effet |
+| :--- | :--- | :--- | :--- | :--- |
+| **1.0%** | 24 | Acc: 65.58% (Rec: 66.62%) | Acc: 63.04% (Rec: 63.78%) | -2.54% |
+| **5.0%** | 143 | Acc: 64.86% (Rec: 64.56%) | Acc: **68.48%** (Rec: 68.33%) | **+3.62%** |
+| **25.0%** | 690 | Acc: 68.84% (Rec: 68.60%) | Acc: **73.55%** (Rec: 73.32%) | **+4.71%** |
+| **100.0%** | 2717 | Acc: 71.01% (Rec: 71.11%) | Acc: **74.64%** (Rec: 74.13%) | **+3.63%** |
 
-Le changement d'architecture du décideur a complètement inversé la tendance par rapport à nos premiers tests linéaires :
+#### Analyse de VICReg
+- **Le MLP baseline sur-apprend** : Sans le VAE, l'accuracy du VICReg évaluée avec un décideur MLP ne dépasse pas 71% (contre ~79% auparavant avec un modèle linéaire simple). Le MLP a "trop de capacité" et sur-apprend l'espace latent des patients du dataset d'entraînement.
+- **Régularisation puissante du VAE** : En introduisant les données synthétiques du VAE, nous observons de très nets bonds de performance (**jusqu'à +4.7%**). La diversité spectrale générée par notre VAE force le classifieur MLP à tracer des frontières de décision beaucoup plus lisses et robustes dans l'espace latent du JEPA.
 
-1. **Le MLP baseline sur-apprend** : Sans le VAE, l'accuracy du JEPA évaluée avec un décideur MLP ne dépasse pas 71% (contre ~79% auparavant avec un modèle linéaire simple). Le MLP a "trop de capacité" et sur-apprend (overfitting) l'espace latent des patients du dataset d'entraînement.
-2. **Le VAE brille comme régularisateur de données** : En introduisant les données synthétiques du VAE, nous observons des bonds de performance majeurs : **+3.6% à 5% de données, +4.7% à 25%, et +3.6% à 100% !** 
-3. **Conclusion** : La diversité spectrale générée par notre VAE force le classifieur MLP à tracer des frontières de décision beaucoup plus lisses et robustes dans l'espace latent du JEPA. Cela l'empêche de faire de l'overfitting et améliore nettement sa généralisation sur de nouveaux patients hors-cohorte (OOD) !
+---
+
+### 5.2 Représentations Video-JEPA (Prédiction Temporelle)
+
+L'encodeur 1D CNN est entraîné via un prédicteur RNN à prédire la représentation de la seconde suivante (`1s` patch) à partir de la seconde courante.
+
+| Fraction (Train) | Fenêtres vues | Video-JEPA (Baseline MLP) | Video-JEPA + VAE Spectral (Augmentation MLP) | Effet |
+| :--- | :--- | :--- | :--- | :--- |
+| **1.0%** | 24 | Acc: 63.04% (Rec: 64.73%) | Acc: 60.51% (Rec: 62.02%) | -2.53% |
+| **5.0%** | 143 | Acc: 62.32% (Rec: 61.71%) | Acc: **63.77%** (Rec: 63.37%) | **+1.45%** |
+| **25.0%** | 690 | Acc: **71.74%** (Rec: 71.21%) | Acc: 70.29% (Rec: 69.49%) | -1.45% |
+| **100.0%** | 2717 | Acc: 70.29% (Rec: 70.83%) | Acc: **71.38%** (Rec: 70.75%) | **+1.09%** |
+
+#### Analyse de Video-JEPA
+- **Gains de baseline à 25%** : La représentation Video-JEPA seule (sans augmentation) est plus performante à 25% de données que la baseline VICReg (**71.74%** vs 68.84%). Cela indique que la contrainte de prédiction temporelle structure mieux l'espace latent que la simple invariance de bruit à régime de données intermédiaire.
+- **Régularisation moins marquée** : Contrairement à VICReg, l'augmentation spectrale du VAE montre un impact plus mitigé sur Video-JEPA (légère baisse à 25% et gain modéré de **+1.09%** à 100%).
+- **Explication géométrique** : L'espace latent de Video-JEPA est structuré de façon temporelle (grâce au prédicteur GRU). Les augmentations spectrales statiques du VAE (déplacement de phases, jitter) modifient les signatures fréquentielles d'une manière qui peut entrer en conflit avec la dynamique temporelle cohérente apprise par le modèle JEPA. 
 
 > [!TIP]
-> Seul le régime ultra-pauvre (1%) souffre avec le VAE, car l'estimation de l'espace latent avec seulement 24 fenêtres est trop bruitée pour que le VAE génère de bonnes variations synthétiques.
+> Pour maximiser l'effet de l'augmentation sur Video-JEPA, il serait pertinent d'étendre le VAE à une structure autoregressive capable de générer des trajectoires temporelles synthétiques cohérentes d'une seconde à l'autre, plutôt que des fenêtres isolées.
+
