@@ -1,0 +1,26 @@
+{
+  "data_root": "/lustre/work/pdl17890/udl806719/datasets/Neuro/TUAB-TUEV/TUAB_PREPROCESSED",
+  "files_found": 2993,
+  "files_accepted": 2993,
+  "files_rejected": 0,
+  "accepted_by_split_class": {
+    "eval/abnormal": 126,
+    "eval/normal": 150,
+    "train/abnormal": 1346,
+    "train/normal": 1371
+  },
+  "patients_by_split": {
+    "train": 2076,
+    "eval": 253
+  },
+  "patient_overlap_train_eval": [],
+  "source_sampling_frequencies": {
+    "200.0": 2993
+  },
+  "duration_sec": {
+    "min": 962.0,
+    "max": 19948.0,
+    "total_hours": 1141.002
+  },
+  "rejection_reasons": {}
+}

@@ -1,8 +1,14 @@
 # EEG dataset defaults (TUH abnormality corpus, TUAB_PREPROCESSED).
 data_root: /lustre/work/pdl17890/udl806719/datasets/Neuro/TUAB-TUEV/TUAB_PREPROCESSED
+manifest_path: /lustre/work/pdl17890/udl806719/datasets/Neuro/TUAB-TUEV/TUAB_PREPROCESSED/audit/edf_inventory.csv
 n_channels: 19          # standard 10-20 montage (fixed order)
 sfreq: 200              # Hz
 window_sec: 10.0        # seconds per window  -> T = 2000 samples
+apply_signal_preprocessing: false  # EDFs are already filtered/notched/resampled
+filter_pad_sec: 10.0     # context around windows to reduce filter edge artefacts
+bandpass_low_hz: 0.1
+bandpass_high_hz: 75.0
+notch_hz: 60.0
 epoch_size: 20000       # random windows per epoch (ssl mode)
 n_windows: 16           # evenly-spaced windows per recording (probe mode)
 batch_size: 128

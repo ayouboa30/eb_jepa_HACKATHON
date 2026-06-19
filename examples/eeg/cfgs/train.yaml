@@ -1,14 +1,20 @@
 # EEG SSL pretraining config (two-view VICReg on TUAB_PREPROCESSED).
 meta:
   seed: 0
-  ckpt_dir: UPDATEME/checkpoints/eeg/dev
+  ckpt_dir: /lustre/work/vivatech-equipe7/aouladali/eb_jepa/checkpoints/eeg
 data:
   data_root: /lustre/work/pdl17890/udl806719/datasets/Neuro/TUAB-TUEV/TUAB_PREPROCESSED
+  manifest_path: /lustre/work/vivatech-equipe7/aouladali/eeg_audit/output/edf_inventory.csv
   split: train
   n_channels: 19
   sfreq: 200
   window_sec: 10.0
-  epoch_size: 20000        # random windows per epoch
+  apply_signal_preprocessing: false  # TUAB_PREPROCESSED already did these steps
+  filter_pad_sec: 10.0
+  bandpass_low_hz: 0.1
+  bandpass_high_hz: 75.0
+  notch_hz: 60.0
+  epoch_size: 4000        # random windows per epoch
   batch_size: 128
   num_workers: 8
   aug_noise_std: 0.1
@@ -18,10 +24,11 @@ data:
 model:
   in_channels: 19
   out_dim: 256          # latent dim D (encoder output)
-  # TODO: add the hyperparameters your encoder / objective need
-  #       (hidden, depth, projector spec e.g. 256-1024-1024,
-  #        std_coeff, cov_coeff; or n_frames, predictor type, ema for JEPA)
+  base_filters: 64
+  projector_spec: "256-512-1024"
+  std_coeff: 1.0
+  cov_coeff: 1.0
 optim:
-  epochs: 20
+  epochs: 50
   lr: 0.001
   weight_decay: 1.0e-6

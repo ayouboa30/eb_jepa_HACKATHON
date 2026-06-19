@@ -5,11 +5,28 @@ that linearly separate **normal vs abnormal** recordings, and generalize to
 **held-out (patient-disjoint) subjects**?
 
 ## Data
-TUH Abnormal EEG corpus, preprocessed: raw `.edf`, **19 channels** (standard 10-20
-montage, fixed order) **@ 200 Hz**, per-channel z-scored. Patient-disjoint
-`train` / `eval` splits, each with `normal` / `abnormal` recordings. Lives at
+TUH Abnormal EEG corpus: raw `.edf` files audited for the common **19-channel**
+10-20 montage, source sampling frequency, duration, and patient identity.
+The provided EDFs are already bandpass-filtered at 0.1-75 Hz, notch-filtered at
+60 Hz, and resampled to 200 Hz; the loader audits these properties and does not
+apply them a second time. It windows the data and applies per-channel z-scoring.
+Patient-disjoint `train` / `eval`
+splits each contain `normal` / `abnormal` recordings. The default location is
 `/lustre/work/pdl17890/udl806719/datasets/Neuro/TUAB-TUEV/TUAB_PREPROCESSED`.
-Read directly from EDF with `pyedflib` (partial window reads) — no prep step.
+Training is blocked until the audit manifest exists; unreadable recordings are
+rejected rather than replaced with zero tensors.
+
+## Mandatory EDF audit
+
+```bash
+python -m eb_jepa.datasets.eeg.audit \
+  --data-root /lustre/work/pdl17890/udl806719/datasets/Neuro/TUAB-TUEV/TUAB_PREPROCESSED \
+  --output-dir /lustre/work/pdl17890/udl806719/datasets/Neuro/TUAB-TUEV/TUAB_PREPROCESSED/audit
+```
+
+This writes `edf_inventory.csv`, `channel_inventory.csv`,
+`rejected_files.csv`, and `audit_summary.json`. Any patient found in both
+`train` and `eval` is rejected and makes the command exit unsuccessfully.
 
 ## Layout
 ```

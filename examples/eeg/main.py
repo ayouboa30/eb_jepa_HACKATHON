@@ -25,37 +25,84 @@ from eb_jepa.datasets.eeg.dataset import EEGConfig, make_loader
 #   eb_jepa.losses:        VICRegLoss (inv+var+cov), VCLoss (variance+covariance)
 
 
+import torch.nn as nn
+from eb_jepa.architectures import Projector
+from eb_jepa.losses import VICRegLoss
+
+class EEGEncoder1D(nn.Module):
+    def __init__(self, in_channels, base_filters, out_dim):
+        super().__init__()
+        self.out_dim = out_dim
+        self.net = nn.Sequential(
+            nn.Conv1d(in_channels, base_filters, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm1d(base_filters),
+            nn.GELU(),
+            nn.Conv1d(base_filters, base_filters*2, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm1d(base_filters*2),
+            nn.GELU(),
+            nn.Conv1d(base_filters*2, base_filters*4, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm1d(base_filters*4),
+            nn.GELU(),
+            nn.Conv1d(base_filters*4, out_dim, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm1d(out_dim),
+            nn.GELU()
+        )
+        self.pool = nn.AdaptiveAvgPool1d(1)
+
+    def represent(self, x):
+        features = self.net(x)
+        return self.pool(features).squeeze(-1)
+
+    def forward(self, x):
+        return self.represent(x)
+
+class VICRegSSL(nn.Module):
+    def __init__(self, encoder, cfg):
+        super().__init__()
+        self.encoder = encoder
+        self.projector = Projector(cfg.projector_spec)
+        self.loss_fn = VICRegLoss(std_coeff=cfg.std_coeff, cov_coeff=cfg.cov_coeff)
+        
+    def compute_loss(self, batch):
+        v1, v2 = batch
+        r1 = self.encoder.represent(v1)
+        r2 = self.encoder.represent(v2)
+        z1 = self.projector(r1)
+        z2 = self.projector(r2)
+        loss_dict = self.loss_fn(z1, z2)
+        loss = loss_dict["loss"]
+        logs = f"inv: {loss_dict['invariance_loss']:.3f} var: {loss_dict['var_loss']:.3f} cov: {loss_dict['cov_loss']:.3f}"
+        return loss, logs
+
+from examples.eeg.architectures import EEGVideoJEPAEncoder, VideoJEPASSL, EEGImageJEPAEncoder, ImageJEPASSL
+
 # --------------------------------------------------------------------------- #
-# 1) ENCODER  — # TODO
+# 1) ENCODER
 # --------------------------------------------------------------------------- #
 def build_encoder(cfg):
-    """TODO: return a 1D encoder mapping an EEG window [B, C=n_channels, T] to a
-    representation. Expose `.represent(x) -> [B, D]` (global pooled over time)
-    and an `.out_dim` attribute. If you go for the predictive objective, also
-    expose `.frames(x) -> [B, F, D]` (a short latent sequence) and `.n_frames`.
-
-    Hints: a strided Conv1d stack (kernel 7, stride 2, BatchNorm + GELU) that
-    downsamples time, followed by global average pooling, is a strong baseline
-    for [B, 19, 2000]. eb_jepa.architectures has 2D image/video encoders to take
-    inspiration from, not a 1D one — so this lives here."""
-    raise NotImplementedError("TODO: build the 1D EEG encoder (see docstring)")
-
+    arch = cfg.get("architecture", "vicreg")
+    if arch == "video_jepa":
+        return EEGVideoJEPAEncoder(in_channels=cfg.in_channels, base_filters=cfg.base_filters, out_dim=cfg.out_dim)
+    elif arch == "image_jepa":
+        return EEGImageJEPAEncoder(embed_dim=cfg.out_dim)
+    else:
+        return EEGEncoder1D(
+            in_channels=cfg.in_channels, 
+            base_filters=cfg.base_filters, 
+            out_dim=cfg.out_dim
+        )
 
 # --------------------------------------------------------------------------- #
-# 2) SSL OBJECTIVE  — # TODO
+# 2) SSL OBJECTIVE
 # --------------------------------------------------------------------------- #
 def build_ssl(encoder, cfg):
-    """TODO: return an nn.Module exposing `compute_loss(batch) -> (loss, logs)`.
-    Pick one:
-      * two-view VICReg (natural choice): the dataset already returns (v1, v2);
-        encoder.represent each view -> eb_jepa Projector -> VICRegLoss
-        (invariance + variance + covariance). batch = (v1, v2).
-      * predictive JEPA (optional): encode frames, roll an eb_jepa RNNPredictor
-        from a context frame to predict future frame latents vs an EMA target;
-        add VCLoss (anti-collapse) on the online latents.
-    Keep the variance/covariance (anti-collapse) term — it is what stops the
-    encoder from mapping every window to the same point."""
-    raise NotImplementedError("TODO: assemble the SSL objective (see docstring)")
+    arch = cfg.get("architecture", "vicreg")
+    if arch == "video_jepa":
+        return VideoJEPASSL(encoder, cfg)
+    elif arch == "image_jepa":
+        return ImageJEPASSL(encoder, cfg)
+    else:
+        return VICRegSSL(encoder, cfg)
 
 
 # --------------------------------------------------------------------------- #

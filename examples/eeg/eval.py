@@ -22,12 +22,14 @@ from examples.eeg.main import build_encoder
 
 
 @torch.no_grad()
-def extract_features(encoder, split, device):
+def extract_features(encoder, split, device, data_cfg):
     """Provided: frozen encoder -> [N_rec, D] recording-level features + labels.
 
     One embedding per recording: encode its N windows and mean-pool them.
     """
-    ds = EEGDataset(EEGConfig(split=split, mode="probe"))
+    values = OmegaConf.to_container(data_cfg, resolve=True)
+    values.update({"split": split, "mode": "probe"})
+    ds = EEGDataset(EEGConfig(**values))
     loader = torch.utils.data.DataLoader(ds, batch_size=8, shuffle=False, num_workers=16,
                                          pin_memory=True)
     X, y = [], []
@@ -70,9 +72,9 @@ def main():
     encoder.load_state_dict(state["encoder"]); encoder.eval()
 
     print("[eeg-eval] extracting TRAIN embeddings (fit set)...", flush=True)
-    Xtr, ytr = extract_features(encoder, "train", device)
+    Xtr, ytr = extract_features(encoder, "train", device, cfg.data)
     print("[eeg-eval] extracting EVAL embeddings (held-out patients)...", flush=True)
-    Xev, yev = extract_features(encoder, "eval", device)
+    Xev, yev = extract_features(encoder, "eval", device, cfg.data)
     print("[eeg-eval]", probe(Xtr, ytr, Xev, yev))
 
 

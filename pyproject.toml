@@ -38,7 +38,9 @@ dependencies = [
     "decord; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "omegaconf",
     "pyyaml",
+    "pyedflib>=0.1.40",
     "ruamel.yaml",
+    "scipy>=1.14.0",
 ]
 requires-python = "==3.12.*"
 
