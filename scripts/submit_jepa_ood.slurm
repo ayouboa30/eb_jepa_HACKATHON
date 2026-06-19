@@ -17,6 +17,6 @@ uv run python scripts/benchmark_jepa_ood.py \
     --data-root /lustre/work/pdl17890/udl806719/datasets/Neuro/TUAB-TUEV/TUAB_PREPROCESSED \
     --manifest /lustre/work/vivatech-equipe7/$USER/eeg_audit/output/edf_inventory.csv \
     --jepa-ckpt checkpoints/eeg/latest.pth.tar \
-    --vae-ckpt results/vae_checkpoint_4k.pt
+    --vae-ckpt results/vae_checkpoint_final.pt
 
 echo "Job finished at $(date)"
