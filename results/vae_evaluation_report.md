@@ -223,8 +223,11 @@ L'encodeur 1D CNN est entraîné via un prédicteur RNN à prédire la représen
 #### Analyse de Video-JEPA
 - **Gains de baseline à 25%** : La représentation Video-JEPA seule (sans augmentation) est plus performante à 25% de données que la baseline VICReg (**71.74%** vs 68.84%). Cela indique que la contrainte de prédiction temporelle structure mieux l'espace latent que la simple invariance de bruit à régime de données intermédiaire.
 - **Régularisation moins marquée** : Contrairement à VICReg, l'augmentation spectrale du VAE montre un impact plus mitigé sur Video-JEPA (légère baisse à 25% et gain modéré de **+1.09%** à 100%).
-- **Explication géométrique** : L'espace latent de Video-JEPA est structuré de façon temporelle (grâce au prédicteur GRU). Les augmentations spectrales statiques du VAE (déplacement de phases, jitter) modifient les signatures fréquentielles d'une manière qui peut entrer en conflit avec la dynamique temporelle cohérente apprise par le modèle JEPA. 
+- **Explication géométrique et Cohérence Globale vs Zoom Local** : Le VAE Spectral excelle à capturer et régulariser la **cohérence globale** du signal (profil fréquentiel et couplage de phase sur toute la fenêtre de 10s). 
+  - **Image-JEPA** (qui masque des patchs sur la grille globale canaux × temps) s'appuie fortement sur cette cohérence globale pour prédire les représentations manquantes. Les augmentations globales du VAE s'y adaptent donc parfaitement.
+  - **Video-JEPA**, au contraire, opère sur un **zoom local** (prédiction temporelle étape par étape, frame d'une seconde après frame d'une seconde via un GRU). Les augmentations spectrales globales du VAE perturbent la dynamique de transition fine et locale inter-secondes, ce qui explique pourquoi l'augmentation ne fonctionne pas bien sur Video-JEPA.
 
 > [!TIP]
-> Pour maximiser l'effet de l'augmentation sur Video-JEPA, il serait pertinent d'étendre le VAE à une structure autoregressive capable de générer des trajectoires temporelles synthétiques cohérentes d'une seconde à l'autre, plutôt que des fenêtres isolées.
+> Votre intuition est validée par ces résultats : pour que le VAE aide Video-JEPA, il faudrait passer d'une modélisation spectrale globale sur 10s à un VAE auto-régressif (génération locale cohérente de trajectoires temporelles seconde par seconde) pour respecter l'effet "zoom" de Video-JEPA.
+
 
