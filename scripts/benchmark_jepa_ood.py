@@ -164,7 +164,7 @@ def main():
     encoder.load_state_dict(ckpt["encoder"])
     encoder.eval()
     
-    vae = SpectralStateVAE(channels=19, time_samples=200, latent_dim=256, hidden_dim=512).to(device)
+    vae = SpectralStateVAE(channels=19, time_samples=200, latent_dim=64, hidden_dim=128).to(device)
     vae.load_state_dict(torch.load(args.vae_ckpt, map_location=device))
     vae.eval()
     
