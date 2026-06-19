@@ -39,9 +39,9 @@ class VideoJEPASSL(nn.Module):
             p.requires_grad = False
             
         self.predictor = RNNPredictor(
-            repr_dim=cfg.out_dim,
+            hidden_size=cfg.out_dim,
             action_dim=1,
-            hidden_dim=cfg.out_dim * 2
+            final_ln=nn.Identity()
         )
         self.ema_momentum = cfg.get("ema_momentum", 0.99)
 
@@ -67,7 +67,13 @@ class VideoJEPASSL(nn.Module):
             target_reprs = self.target_encoder(target_frames).view(B, n_frames - 1, -1)
             
         dummy_actions = torch.zeros(B, n_frames - 1, 1, device=v1.device)
-        predictions = self.predictor(context_reprs, dummy_actions)
+        
+        B_new = B * (n_frames - 1)
+        state_in = context_reprs.reshape(B_new, -1, 1, 1, 1)
+        action_in = dummy_actions.reshape(B_new, 1, 1)
+        
+        predictions_raw = self.predictor(state_in, action_in)
+        predictions = predictions_raw.view(B, n_frames - 1, -1)
         
         loss = F.mse_loss(predictions, target_reprs)
         logs = f"mse: {loss.item():.4f}"
