@@ -2,6 +2,12 @@
 meta:
   seed: 0
   ckpt_dir: /lustre/work/vivatech-equipe7/aouladali/eb_jepa/checkpoints/eeg
+experiment:
+  seed: 0
+  model_name: temporal_jepa
+  dataset_name: TUAB
+  split: train
+  notes: "Temporal JEPA EEG SSL training"
 data:
   data_root: /lustre/work/pdl17890/udl806719/datasets/Neuro/TUAB-TUEV/TUAB_PREPROCESSED
   manifest_path: /lustre/work/vivatech-equipe7/aouladali/eeg_audit/output/edf_inventory.csv
@@ -33,3 +39,21 @@ optim:
   epochs: 50
   lr: 0.001
   weight_decay: 1.0e-6
+wandb:
+  enabled: false
+  project: eb-jepa-eeg
+  entity: null
+  run_name: temporal_jepa_tuab
+  group: temporal-jepa
+  job_type: train
+  tags:
+    - eeg
+    - tuab
+    - temporal-jepa
+    - ssl
+  log_interval: 50
+  watch_model: false
+  save_artifact: true
+  artifact_name: model-temporal-jepa-tuab
+  best_metric: train/epoch_loss
+  best_mode: min
